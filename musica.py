@@ -7,7 +7,7 @@ from typing import Literal
 import pandas as pd
 
 # Configuração mínima
-client = genai.Client(api_key='AIzaSyB0XRRuJvU7ZAkETNGKyptLDQhpfhIyFfE')  # usa Client(api_key=...)
+client = genai.Client(api_key='SUA CHAVE DE API AQUI') 
 
 # Schema estruturado
 class Estilo(BaseModel):
