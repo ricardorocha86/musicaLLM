@@ -7,7 +7,7 @@ from typing import Literal
 import pandas as pd
 
 # Configuração mínima
-client = genai.Client(api_key='AIzaSyDY41W2cBUMyXglwja2JWJn8q7ZqAPwNfE')  # usa Client(api_key=...)
+client = genai.Client(api_key='kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk')  # usa Client(api_key=...)
 
 # Schema estruturado
 # Schema estruturado com Chain of Thought
