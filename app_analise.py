@@ -141,33 +141,24 @@ if df.empty:
     st.warning(f"Aguardando `{FILE_DATA}`. Execute `python musica.py` primeiro.")
     st.stop()
 
-# === SIDEBAR MELHORADA ===
-st.sidebar.header("🎛️ Configuração da Análise")
+# === SIDEBAR ===
+st.sidebar.header("🎛️ Filtros")
 
-st.sidebar.subheader("Filtros de Dados")
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    sel_modelos = st.multiselect("Modelos", df['modelo'].unique().tolist(), default=df['modelo'].unique().tolist(), label_visibility="collapsed")
-with col2:
-    sel_prompts = st.multiselect("Prompts", df['prompt_id'].unique().tolist(), default=df['prompt_id'].unique().tolist(), label_visibility="collapsed")
+st.sidebar.caption("**Modelos:**")
+sel_modelos = st.sidebar.pills("sel_mod", df['modelo'].unique().tolist(), selection_mode="multi", default=df['modelo'].unique().tolist(), label_visibility="collapsed")
 
-if sel_modelos:
-    sel_modelos_labels = ", ".join([m.split('-')[1] for m in sel_modelos])
-else:
-    sel_modelos_labels = "Nenhum"
-
-st.sidebar.caption(f"**Modelos:** {sel_modelos_labels}")
-st.sidebar.caption(f"**Prompts:** {len(sel_prompts)} selecionados")
+st.sidebar.caption("**Prompts:**")
+sel_prompts = st.sidebar.pills("sel_prom", df['prompt_id'].unique().tolist(), selection_mode="multi", default=df['prompt_id'].unique().tolist(), label_visibility="collapsed")
 
 df_filtered = df[(df['modelo'].isin(sel_modelos)) & (df['prompt_id'].isin(sel_prompts))]
 
 st.sidebar.divider()
-st.sidebar.metric("📊 Amostras Ativas", f"{len(df_filtered):,}")
+st.sidebar.metric("📊 Amostras", f"{len(df_filtered):,}")
 if len(df_filtered) > 0:
     acc_global = (df_filtered['estilo_real'] == df_filtered['estilo_llm']).mean()
-    st.sidebar.metric("✅ Acurácia Global", f"{acc_global:.1%}")
+    st.sidebar.metric("✅ Acurácia", f"{acc_global:.1%}")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📊 Visão Geral", "🔬 Modelos", "📝 Prompts", "🎯 Individual", "❌ Erros", "📋 Dados", "🧪 Playground"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["📊 Visão Geral", "🔬 Modelos", "📝 Prompts", "🎯 Individual", "❌ Erros", "📋 Dados", "🧪 Playground", "ℹ️ Sobre"])
 
 # =============================================================================
 # TAB 1: VISÃO GERAL - FOCO ESTATÍSTICO
@@ -657,3 +648,116 @@ Se o áudio soar como essas referências, classifique no respectivo estilo."""
                     except Exception as e:
                         st.error(f"Erro na classificação: {str(e)}")
 
+# TAB 8: SOBRE
+with tab8:
+    st.header("ℹ️ Sobre o Experimento")
+    
+    st.markdown("""
+    ## 🎯 Objetivo
+    
+    Este experimento avalia a capacidade de modelos **Gemini** (Google) em classificar automaticamente 
+    gêneros musicais brasileiros a partir de arquivos de áudio, utilizando a API de análise multimodal.
+    
+    ---
+    
+    ## 🔬 Design Experimental
+    
+    ### Configuração Fatorial
+    O experimento segue um design **3×3 fatorial completo**:
+    
+    | Fator | Níveis |
+    |-------|--------|
+    | **Modelo** | `gemini-2.0-flash`, `gemini-2.5-flash`, `gemini-3-flash-preview` |
+    | **Prompt** | Básico, Intermediário, Avançado |
+    
+    Resultando em **9 configurações** testadas.
+    
+    ### Dataset
+    - **8 gêneros musicais**: Rock, Samba, MPB, Funk, Sertanejo, Carimbó, Forró, Rap
+    - Músicas geradas por IA (Suno) para controle de variáveis
+    - Cada música é classificada por todas as 9 configurações
+    
+    ### Parâmetros Fixos
+    - **Temperatura**: 0 (determinístico)
+    - **Formato de saída**: JSON estruturado via Pydantic
+    - **Concorrência**: 30 requisições simultâneas máximo
+    
+    ---
+    
+    ## 📊 Métricas Utilizadas
+    
+    ### Métricas de Classificação
+    
+    | Métrica | Fórmula | Interpretação |
+    |---------|---------|---------------|
+    | **Precision** | TP / (TP + FP) | Das predições de classe X, quantas estavam corretas |
+    | **Recall** | TP / (TP + FN) | Das amostras reais de classe X, quantas foram identificadas |
+    | **F1-Score** | 2 × (P × R) / (P + R) | Média harmônica de Precision e Recall |
+    
+    ### Intervalo de Confiança
+    
+    Utilizamos o **Wilson Score Interval** (95%) para estimar a incerteza das proporções:
+    
+    ```
+                        p + z²/2n ± z√[p(1-p)/n + z²/4n²]
+    IC Wilson = ─────────────────────────────────────────────
+                                1 + z²/n
+    ```
+    
+    Onde:
+    - **p** = proporção observada (acurácia)
+    - **n** = tamanho da amostra
+    - **z** = 1.96 (para 95% de confiança)
+    
+    **Por que Wilson?** O intervalo de Wald tradicional (`p ± z√(p(1-p)/n)`) falha quando p está próximo 
+    de 0 ou 1, ou quando n é pequeno. O Wilson Score corrige esse viés.
+    
+    ### Interpretação Visual
+    
+    Nos **Forest Plots**:
+    - Se dois intervalos **NÃO SE SOBREPÕEM** → diferença estatisticamente significativa (p < 0.05)
+    - Se dois intervalos **SE SOBREPÕEM** → diferença pode ser por acaso
+    
+    ---
+    
+    ## 📝 Prompts do Experimento
+    
+    ### 🟢 Básico
+    Instrução mínima: "Classifique o estilo musical".
+    
+    ### 🟡 Intermediário
+    Inclui taxonomia detalhada com características de cada gênero (instrumentação, ritmo, etc.).
+    
+    ### 🔴 Avançado
+    Taxonomia + exemplos de referência (10 músicas conhecidas por gênero).
+    
+    ---
+    
+    ## 💰 Custos
+    
+    | Modelo | Input Áudio | Input Texto | Output |
+    |--------|-------------|-------------|--------|
+    | gemini-2.0-flash | $0.70/M | $0.10/M | $0.40/M |
+    | gemini-2.5-flash | $1.00/M | $0.30/M | $2.50/M |
+    | gemini-3-flash-preview | $1.00/M | $0.50/M | $3.00/M |
+    
+    *Preços por milhão de tokens*
+    
+    ---
+    
+    ## 🛠️ Tecnologias
+    
+    - **API**: Google Generative AI (Gemini)
+    - **Validação**: Pydantic para schema JSON estruturado
+    - **Análise**: Pandas, Scikit-learn, SciPy
+    - **Visualização**: Plotly, Streamlit
+    - **IC**: Wilson Score via implementação própria
+    
+    ---
+    
+    ## 📚 Referências
+    
+    - Wilson, E.B. (1927). "Probable inference, the law of succession, and statistical inference". 
+      *Journal of the American Statistical Association*.
+    - Google. "Gemini API Documentation". https://ai.google.dev/
+    """)
