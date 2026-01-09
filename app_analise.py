@@ -392,6 +392,15 @@ elif page == "Experimento IA (Aberto)":
             subset = df_af[df_af['estilo_real'] == sel_style]
             st.metric(f"Acurácia para {sel_style.upper()}", f"{subset['Hit'].mean():.1%}")
             
+            st.info("""
+            **ℹ️ Critério de Cálculo (Match Flexível):**  
+            Consideramos um acerto se o estilo real (gabarito) tiver qualquer correspondência textual com a lista de gêneros sugeridos pelo modelo.  
+            Isso inclui:
+            - **Correspondência Exata:** Real='samba', Predito='samba'
+            - **Inclusão:** Real='samba', Predito='samba de raiz' (ou vice-versa)
+            """)
+
+            
             # Quais tags o modelo gerou para este estilo?
             all_tags_style = []
             for l in subset['estilos_list']: all_tags_style.extend(l)
