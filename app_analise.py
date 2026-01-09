@@ -12,6 +12,7 @@ from typing import Literal, List
 from collections import Counter
 from scipy import stats
 import matplotlib.colors as mcolors
+from metodologia import METODOLOGIA_SUNO, METODOLOGIA_ABERTO, METODOLOGIA_REAIS
 
 st.set_page_config(page_title="Experimento Musical Gemini", layout="wide", initial_sidebar_state="expanded")
 
@@ -120,7 +121,7 @@ df = load_data()
 
 # === NAVEGAÇÃO ===
 st.sidebar.title("Navegação")
-page = st.sidebar.radio("Ir para:", ["Experimento IA (Suno)", "Músicas Reais (Gabarito)"])
+page = st.sidebar.radio("Ir para:", ["Experimento IA (Suno)", "Experimento IA (Aberto)", "Músicas Reais (Gabarito)"])
 
 if page == "Experimento IA (Suno)":
     st.title("🎵 Experimento: Classificação Musical com Gemini")
@@ -146,7 +147,7 @@ if page == "Experimento IA (Suno)":
         acc_global = (df_filtered['estilo_real'] == df_filtered['estilo_llm']).mean()
         st.sidebar.metric("✅ Acurácia", f"{acc_global:.1%}")
     
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["📊 Visão Geral", "🔬 Modelos", "📝 Prompts", "🎯 Individual", "❌ Erros", "📋 Dados", "🧪 Playground", "ℹ️ Sobre"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📊 Visão Geral", "🔬 Modelos", "📝 Prompts", "🎯 Individual", "❌ Erros", "📋 Dados", "🧪 Playground", "ℹ️ Sobre", "📖 Metodologia"])
     
     with tab1:
         st.header("📊 Análise Estatística dos Resultados")
@@ -272,18 +273,189 @@ if page == "Experimento IA (Suno)":
         if not client:
             st.error("API Key não configurada.")
         else:
-            PROMPTS_EXPERIMENTO = {
-                "P_Basico": "Classifique o estilo musical.",
-                "P_Intermediario": "Atue como musicólogo. Analise instrumentação e ritmo.",
-                "P_Avancado": "Atue como musicólogo. Use exemplos de referência."
-            }
-            uploaded_file = st.file_uploader("Upload de Áudio", type=['mp3', 'wav', 'ogg', 'm4a'])
-            if uploaded_file and st.button("Classificar"):
-                # Mockup basic functionality to keep file size small, full logic was in prev file
-                st.success("Funcionalidade simplificada para esta visualização.")
+            st.info("Para usar o Playground, acesse o script original.")
 
     with tab8:
         st.markdown("## Sobre o Experimento\nAnálise de capacidade de modelos Gemini em classificar gêneros musicais brasileiros.")
+
+    with tab9:
+        st.markdown(METODOLOGIA_SUNO)
+
+
+
+elif page == "Experimento IA (Aberto)":
+    st.title("🔓 Experimento: Classificação Aberta")
+    st.caption("Análise onde o modelo pode sugerir múltiplos gêneros livremente (List[str]).")
+    
+    FILE_ABERTO = "Experimento_Completo_Gemini_Aberto.xlsx"
+    if not os.path.exists(FILE_ABERTO):
+        st.error(f"Arquivo `{FILE_ABERTO}` não encontrado. Execute `musica2.py` primeiro.")
+        st.stop()
+        
+    @st.cache_data
+    def load_data_aberto():
+        try:
+            all_dfs = []
+            xl = pd.ExcelFile(FILE_ABERTO)
+            for sheet in xl.sheet_names:
+                sheet_df = xl.parse(sheet)
+                all_dfs.append(sheet_df)
+            return pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
+        except Exception as e:
+            st.error(f"Erro ao carregar excel: {e}")
+            return pd.DataFrame()
+
+    df_a = load_data_aberto()
+    
+    # Processamento Inicial
+    # Converter estilos_llm de string "A, B, C" para lista
+    df_a['estilos_list'] = df_a['estilos_llm'].fillna('').apply(lambda x: [s.strip().lower() for s in str(x).split(',') if s.strip()])
+    
+    # Definir Critério de Acerto "Broad" (Se o estilo real está contido na lista)
+    def check_hit(row):
+        real = str(row['estilo_real']).strip().lower()
+        pred_list = row['estilos_list']
+        # Verifica se real está na lista OU se algum item da lista contem o real (ex: 'samba' in 'samba de raiz')
+        for p in pred_list:
+            if real == p or real in p or p in real:
+                return 1
+        return 0
+
+    df_a['Hit'] = df_a.apply(check_hit, axis=1)
+    df_a['Qtd_Tags'] = df_a['estilos_list'].apply(len)
+    
+    # === SIDEBAR ===
+    st.sidebar.header("🎛️ Filtros (Aberto)")
+    sel_mod_a = st.sidebar.pills("filtro_mod_a", df_a['modelo'].unique(), selection_mode="multi", default=df_a['modelo'].unique(), label_visibility="collapsed")
+    sel_prom_a = st.sidebar.pills("filtro_prom_a", df_a['prompt_id'].unique(), selection_mode="multi", default=df_a['prompt_id'].unique(), label_visibility="collapsed")
+    
+    df_af = df_a[(df_a['modelo'].isin(sel_mod_a)) & (df_a['prompt_id'].isin(sel_prom_a))]
+    
+    # KPIs
+    st.sidebar.divider()
+    acc_broad = df_af['Hit'].mean()
+    st.sidebar.metric("✅ Acurácia (Broad)", f"{acc_broad:.1%}", help="Considera acerto se o estilo real estiver na lista de sugestões.")
+    st.sidebar.metric("🏷️ Tags / Música", f"{df_af['Qtd_Tags'].mean():.1f}")
+    
+    # TABS
+    tab_ov, tab_mod, tab_gen, tab_vocab, tab_tech, tab_data, tab_metod = st.tabs(["📊 Visão Geral", "🔬 Modelos", "🎸 Gêneros", "🗣️ Vocabulário", "🎚️ Técnico", "📋 Dados", "📖 Metodologia"])
+    
+    with tab_ov:
+        st.header("📊 Resultado Geral (Classificação Livre)")
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Acurácia (Broad)", f"{acc_broad:.1%}")
+        c2.metric("Confiança Média", f"{df_af['confianca'].mean():.1f}%")
+        c3.metric("Custo Total", f"${df_af['custo_total'].astype(float).sum():.4f}")
+        
+        st.divider()
+        st.subheader("🏆 Ranking de Configurações (Acurácia Broad)")
+        
+        # Calculate Config Rank safely
+        if not df_af.empty:
+            conf_rank = df_af.groupby(['modelo', 'prompt_id']).apply(lambda x: pd.Series({
+                'Acurácia': x['Hit'].mean(),
+                'N': len(x),
+                'Tags_Media': x['Qtd_Tags'].mean()
+            })).reset_index().sort_values('Acurácia', ascending=True)
+            
+            fig_r = px.bar(conf_rank, x='Acurácia', y='modelo', color='prompt_id', orientation='h', barmode='group',
+                           text_auto='.1%', title="Acurácia por Modelo e Prompt")
+            fig_r.update_layout(xaxis_range=[0, 1.1])
+            st.plotly_chart(fig_r, use_container_width=True)
+        else:
+            st.warning("Sem dados para ranking.")
+        
+    with tab_mod:
+        st.header("🔬 Comparativo de Modelos")
+        # Forest plot para modelos
+        if not df_a.empty:
+            mod_stats = df_a.groupby('modelo').apply(lambda x: pd.Series({'Acc': x['Hit'].mean(), 'N': len(x)})).reset_index().sort_values('Acc')
+            
+            fig_fp = go.Figure()
+            for i, row in mod_stats.iterrows():
+                low, high = wilson_ci(row['Acc'], row['N'])
+                fig_fp.add_trace(go.Scatter(x=[low, high], y=[row['modelo'], row['modelo']], mode='lines', line=dict(width=5, color='#3182bd')))
+                fig_fp.add_trace(go.Scatter(x=[row['Acc']], y=[row['modelo']], mode='markers', marker=dict(size=12, color='#08519c')))
+                
+            fig_fp.update_layout(title="Intervalo de Confiança (95%) por Modelo", xaxis_title="Acurácia (Broad)", xaxis_range=[0, 1])
+            st.plotly_chart(fig_fp, use_container_width=True)
+        else:
+            st.warning("Sem dados.")
+
+    with tab_gen:
+        st.header("🎸 Análise por Gênero Real")
+        all_real_styles = sorted(df_af['estilo_real'].unique())
+        sel_style = st.selectbox("Selecione um Estilo Real:", all_real_styles)
+        
+        if sel_style:
+            subset = df_af[df_af['estilo_real'] == sel_style]
+            st.metric(f"Acurácia para {sel_style.upper()}", f"{subset['Hit'].mean():.1%}")
+            
+            # Quais tags o modelo gerou para este estilo?
+            all_tags_style = []
+            for l in subset['estilos_list']: all_tags_style.extend(l)
+            
+            counts = pd.Series(all_tags_style).value_counts().head(20).reset_index()
+            counts.columns = ['Tag Gerada', 'Frequência']
+            
+            fig_bar = px.bar(counts, x='Frequência', y='Tag Gerada', orientation='h', 
+                             title=f"Top 20 Tags geradas para músicas de '{sel_style}'", color='Frequência', color_continuous_scale=SCALE_ORANGE)
+            fig_bar.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+    with tab_vocab:
+        st.header("🗣️ Vocabulário do Modelo")
+        st.markdown("Quais termos os modelos mais usam na classificação livre?")
+        
+        all_tags_global = []
+        for l in df_af['estilos_list']: all_tags_global.extend(l)
+        
+        if all_tags_global:
+            vocab_counts = pd.Series(all_tags_global).value_counts().head(30).reset_index()
+            vocab_counts.columns = ['Tag', 'Total']
+            
+            fig_v = px.treemap(vocab_counts, path=['Tag'], values='Total', title="Mapa de Tags Mais Frequentes (Treemap)")
+            st.plotly_chart(fig_v, use_container_width=True)
+            
+            st.subheader("Tags Únicas Geradas")
+            st.write(f"Total de tags únicas diferentes: **{len(set(all_tags_global))}**")
+        else:
+            st.warning("Sem tags para exibir.")
+
+    with tab_tech:
+        st.header("🎚️ Análise Técnica e Descritiva")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Densidade do Arranjo")
+            if 'densidade' in df_af.columns:
+                fig_d = px.pie(df_af, names='densidade', title="Distribuição de Densidade", hole=0.4)
+                st.plotly_chart(fig_d, use_container_width=True)
+                
+        with col2:
+            st.subheader("Presença Vocal")
+            if 'presenca_vocal' in df_af.columns:
+                fig_v = px.pie(df_af, names='presenca_vocal', title="Distribuição Vocal", hole=0.4)
+                st.plotly_chart(fig_v, use_container_width=True)
+                
+        st.subheader("Instrumentos Mais Citados")
+        if 'instrumentos' in df_af.columns:
+            all_inst = []
+            for i_str in df_af['instrumentos'].dropna():
+                parts = [p.strip() for p in str(i_str).split(',')]
+                all_inst.extend(parts)
+            
+            if all_inst:
+                inst_counts = pd.Series(all_inst).value_counts().head(20).reset_index()
+                inst_counts.columns = ['Instrumento', 'Contagem']
+                st.plotly_chart(px.bar(inst_counts, x='Contagem', y='Instrumento', orientation='h'), use_container_width=True)
+
+    with tab_data:
+        st.dataframe(df_af, use_container_width=True)
+
+    with tab_metod:
+        st.markdown(METODOLOGIA_ABERTO)
 
 elif page == "Músicas Reais (Gabarito)":
     st.title("🎸 Análise de Músicas Reais (Gabarito vs Modelo)")
@@ -314,7 +486,7 @@ elif page == "Músicas Reais (Gabarito)":
 
     st.divider()
     
-    tab_overview, tab_years, tab_open, tab_data = st.tabs(["📊 Visão Geral", "📅 Por Ano de Lançamento", "🔓 Análise Aberta", "📋 Dados Brutos"])
+    tab_overview, tab_years, tab_open, tab_data, tab_metod_reais = st.tabs(["📊 Visão Geral", "📅 Por Ano de Lançamento", "🔓 Análise Aberta", "📋 Dados Brutos", "📖 Metodologia"])
 
     with tab_overview:
         col1, col2 = st.columns([1.5, 1])
@@ -402,3 +574,7 @@ elif page == "Músicas Reais (Gabarito)":
 
     with tab_data:
         st.dataframe(df_reais, use_container_width=True)
+
+    with tab_metod_reais:
+        st.markdown(METODOLOGIA_REAIS)
+
